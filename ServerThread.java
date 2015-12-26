@@ -36,6 +36,7 @@ public class ServerThread extends Thread {
 		while (listen) {
 			try {
 				server = socket.accept();
+				System.out.println("Connection from " + server);
 				new Thread(new ClientThread(server)).start();
 			} catch (SocketTimeoutException k) {
 				System.err.println("Socket timed out!");
@@ -73,6 +74,10 @@ public class ServerThread extends Thread {
 				if(request == 0){
 					System.out.print("Incoming score: ");
 					int usrRating = in.readInt();
+					if(usrRating > 6 || usrRating < 1){
+						out.writeUTF("Error: Must be between 1-5");
+						break;
+					}
 					System.out.print(usrRating);
 					numVotes++;
 					totRating += usrRating;
@@ -84,12 +89,15 @@ public class ServerThread extends Thread {
 					System.out.println("Sending score " + rating + ", numVotes " + numVotes);
 					out.writeFloat(rating);
 					out.writeInt(numVotes);
-				} else{
-				       	out.writeUTF("Bad request");	
+				}else{
+					System.out.println("Bad request recieved");
 				}
 			}catch(EOFException e){
 				System.out.println("Client disconnected");
 				runIt = false;
+			}catch(java.net.SocketException e){
+				System.out.println("Error with client " + socket); 
+				e.printStackTrace();
 			}catch(IOException e){
 				e.printStackTrace();
 			}
