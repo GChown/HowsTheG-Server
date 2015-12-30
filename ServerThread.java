@@ -1,26 +1,29 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.EOFException;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class ServerThread extends Thread {
 	private ServerSocket socket;
 	private Socket server;
-	private DataInputStream in;
-	private DataOutputStream out;
+	private Connection sqlCon;
 	private float rating;
 	private int numVotes;
 	private float totRating;
 
-	public static void main(String[] args){
-	try{
-		new ServerThread().start();
-	}catch(IOException e){
-		e.printStackTrace();
-	}
+	public static void main(String[] args) {
+		try {
+			new ServerThread().start();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	public ServerThread() throws IOException {
@@ -29,6 +32,30 @@ public class ServerThread extends Thread {
 		rating = 0;
 		numVotes = 0;
 		totRating = 0;
+		try {
+			sqlCon = getConnection();
+			PreparedStatement create = sqlCon.prepareStatement(
+			"CREATE TABLE IF NOT EXISTS votes(ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, name varchar(255) NOT NULL UNIQUE)");
+			create.executeUpdate();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static Connection getConnection() {
+		try {
+			String driver = "com.mysql.jdbc.Driver";
+			String url = "jdbc:mysql://localhost:3306/testdb";
+			String username = "root";
+			String password = "IAintTellin";
+			Class.forName(driver);
+			Connection conn = DriverManager.getConnection(url, username, password);
+			System.out.println("Connected to database");
+			return conn;
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+		return null;
 	}
 
 	public void run() {
@@ -36,11 +63,21 @@ public class ServerThread extends Thread {
 		while (listen) {
 			try {
 				server = socket.accept();
-				System.out.println("Connection from " + server);
-				new Thread(new ClientThread(server)).start();
+				System.out.println("Connection from " + server.getInetAddress().getHostName() + "(" 
+						+ server.getInetAddress().getHostAddress() + ")");
+				ClientThread client = new ClientThread(server, this);
+				// INSERT INTO 'votes' ('name') VALUES
+				// ("android-a0d157613c0a95ed");
+				PreparedStatement create = sqlCon
+						.prepareStatement("INSERT INTO votes (name) VALUES (\"" + client.getHostname() 
+						+ "\") ON DUPLICATE KEY UPDATE vote=vote;");
+				create.executeUpdate();
+				new Thread(client).start();
+			} catch (SQLException e) {
+				e.printStackTrace();
 			} catch (SocketTimeoutException k) {
 				System.err.println("Socket timed out!");
-			} catch(EOFException e){
+			} catch (EOFException e) {
 				System.out.println("Client disconnected");
 				continue;
 			} catch (IOException e) {
@@ -49,59 +86,36 @@ public class ServerThread extends Thread {
 			}
 		}
 	}
-	class ClientThread implements Runnable{
-		Socket socket;
-		int request;
-		ClientThread(Socket sock){
-			this.socket = sock;
-			try{
-				in = new DataInputStream(socket.getInputStream());
-				out = new DataOutputStream(socket.getOutputStream());
-				request = -1;
-			}catch(EOFException e){
-				System.out.println("Client disconnected");
-			}catch(IOException e){
-				e.printStackTrace();
-			}
+
+	public float getAverage() {
+		try {
+		Statement stmt = sqlCon.createStatement();
+		ResultSet results = stmt.executeQuery("SELECT AVG(vote) FROM votes;");
+		if(results.next())
+			rating = results.getFloat(1);
+		} catch (SQLException e) {
+			e.printStackTrace();
 		}
-		public void run(){
-			boolean runIt = true;
-			while(runIt){
-			try{
-				request = in.readInt();
-				//Request 0 is send Rating (incoming), request 1 is get rating and numVotes
-				System.out.println("Recieved request " + request + " from client " + socket.getInetAddress().getHostName() + "; ");
-				if(request == 0){
-					System.out.print("Incoming score: ");
-					int usrRating = in.readInt();
-					if(usrRating > 6 || usrRating < 1){
-						out.writeUTF("Error: Must be between 1-5");
-						break;
-					}
-					System.out.print(usrRating);
-					numVotes++;
-					totRating += usrRating;
-					rating = totRating / numVotes;
-					rating = ((float) Math.floor(rating * 10)) / 10;
-					System.out.println(", number of votes: " + numVotes + ", total rating: " + totRating
-							+ ", average rating: " + rating);
-				}else if(request == 1){
-					System.out.println("Sending score " + rating + ", numVotes " + numVotes);
-					out.writeFloat(rating);
-					out.writeInt(numVotes);
-				}else{
-					System.out.println("Bad request recieved");
-				}
-			}catch(EOFException e){
-				System.out.println("Client disconnected");
-				runIt = false;
-			}catch(java.net.SocketException e){
-				System.out.println("Error with client " + socket); 
-				e.printStackTrace();
-			}catch(IOException e){
-				e.printStackTrace();
-			}
-			}
-		}
+		return rating;
 	}
+
+	public int getNumVotes() {
+		return numVotes;
+	}
+
+	public void addScore(int score, String hostname) {
+		numVotes++;
+		totRating += score;
+		rating = totRating / numVotes;
+		try {
+			//Update score in database
+			PreparedStatement create = sqlCon
+					.prepareStatement("UPDATE votes SET vote=" + score + " WHERE name=\"" +  hostname + "\";");
+			create.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		System.out.println("Incoming score " + score);
+	}
+
 }
