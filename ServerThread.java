@@ -35,7 +35,8 @@ public class ServerThread extends Thread {
 		try {
 			sqlCon = getConnection();
 			PreparedStatement create = sqlCon.prepareStatement(
-			"CREATE TABLE IF NOT EXISTS votes(ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, name varchar(255) NOT NULL UNIQUE)");
+			"CREATE TABLE IF NOT EXISTS votes(ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, name varchar(255) NOT NULL UNIQUE,"
+			+ "vote INT);");
 			create.executeUpdate();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -67,10 +68,9 @@ public class ServerThread extends Thread {
 						+ server.getInetAddress().getHostAddress() + ")");
 				ClientThread client = new ClientThread(server, this);
 				// INSERT INTO 'votes' ('name') VALUES
-				// ("android-a0d157613c0a95ed");
 				PreparedStatement create = sqlCon
-						.prepareStatement("INSERT INTO votes (name) VALUES (\"" + client.getHostname() 
-						+ "\") ON DUPLICATE KEY UPDATE vote=vote;");
+                                	.prepareStatement("INSERT INTO votes (name) VALUES (?) ON DUPLICATE KEY UPDATE vote=vote;");
+                                create.setString(1, client.getHostname());
 				create.executeUpdate();
 				new Thread(client).start();
 			} catch (SQLException e) {
@@ -110,12 +110,13 @@ public class ServerThread extends Thread {
 		try {
 			//Update score in database
 			PreparedStatement create = sqlCon
-					.prepareStatement("UPDATE votes SET vote=" + score + " WHERE name=\"" +  hostname + "\";");
+	                        .prepareStatement("UPDATE votes SET vote=? WHERE name=?;");
+			create.setString(1, "" + score);
+                        create.setString(2, hostname);
 			create.executeUpdate();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 		System.out.println("Incoming score " + score);
 	}
-
 }

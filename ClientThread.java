@@ -11,20 +11,22 @@ class ClientThread implements Runnable{
 		private DataInputStream in;
 		private DataOutputStream out;
 		private ServerThread host;
+		
 		ClientThread(Socket sock, ServerThread host){
 			this.socket = sock;
 			this.host = host;
-			this.hostname = socket.getInetAddress().getHostName();
 			try{
 				in = new DataInputStream(socket.getInputStream());
 				out = new DataOutputStream(socket.getOutputStream());
 				request = -1;
+				this.hostname = in.readUTF();
 			}catch(EOFException e){
 				System.out.println("Client disconnected");
 			}catch(IOException e){
 				e.printStackTrace();
 			}
 		}
+		
 		public void run(){
 			boolean runIt = true;
 			while(runIt){
@@ -66,6 +68,7 @@ class ClientThread implements Runnable{
 			}
 			}
 		}
+		
 		public String getHostname(){
 			return hostname;
 		}
