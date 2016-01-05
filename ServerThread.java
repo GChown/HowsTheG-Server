@@ -40,7 +40,7 @@ public class ServerThread extends Thread {
 		hour = calendar.get(Calendar.HOUR_OF_DAY);
 		//Table name is _2016_01_31 for example
 		tableName = "_" + calendar.get(Calendar.YEAR) + "_" +  calendar.get(Calendar.MONTH) 
-		+ "_" + calendar.get(Calendar.DAY_OF_MONTH);
+			+ "_" + calendar.get(Calendar.DAY_OF_MONTH);
 		System.out.println("Running on database " + tableName + " at " + socket);
 		rating = 0;
 		numVotes = 0;
@@ -50,26 +50,28 @@ public class ServerThread extends Thread {
 		//if it has, update the variable
 		Timer timer = new Timer();
 		timer.schedule(new TimerTask(){
-			public void run() {
-				if(hour < 10){
-					//It's breakfast
-					meal = 'b';}
-				if(hour > 10 && hour < 18){
-					//Lunch time
-					meal = 'l';}
-				if(hour > 18){
-					//Dinner time
-					meal = 'd';}
+				public void run() {
+				if(hour > 8 && hour < 10){
+				//It's breakfast
+				meal = 'b';}
+				if(hour >= 10 && hour < 14){
+				//Lunch time
+				meal = 'l';}
+				if(hour >= 14){
+				//Dinner time
+				meal = 'd';}
+				else{
+				meal = 'o';}
 				System.out.println("Meal is " + meal + " at " + hour);
-			}
-			//Run every hour - shouldn't take up too much processing power
-		}, 0, 60 * 60 * 1000);
-		
+				}
+				//Run every hour - shouldn't take up too much processing power
+				}, 0, 60 * 60 * 1000);
+
 		try {
 			sqlCon = getConnection();
 			PreparedStatement create = sqlCon.prepareStatement(
 					"CREATE TABLE IF NOT EXISTS votes" + tableName + "(ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, "
-							+ "name varchar(255) NOT NULL UNIQUE, vote_b INT, vote_l INT, vote_d INT);");
+					+ "name varchar(255) NOT NULL UNIQUE, vote_b INT, vote_l INT, vote_d INT);");
 			create.executeUpdate();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -121,7 +123,7 @@ public class ServerThread extends Thread {
 		}
 	}
 
-	public float getAverage() {
+	public void refreshAverage() {
 		try {
 			Statement stmt = sqlCon.createStatement();
 			ResultSet results = stmt.executeQuery("SELECT AVG(vote_" + meal + ") FROM votes" + tableName + ";");
@@ -130,10 +132,9 @@ public class ServerThread extends Thread {
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		return rating;
 	}
 
-	public int getNumVotes() {
+	public void refreshNumVotes() {
 		try {
 			Statement stmt = sqlCon.createStatement();
 			ResultSet results = stmt.executeQuery("SELECT COUNT(*) FROM votes" + tableName 
@@ -143,8 +144,13 @@ public class ServerThread extends Thread {
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		return numVotes;
 	}
+	public float getAverage(){
+		return rating;
+	}
+	public int getNumVotes(){
+		return numVotes;
+	}	
 
 	public void addScore(int score, String hostname) {
 		numVotes++;
@@ -157,10 +163,10 @@ public class ServerThread extends Thread {
 			create.setString(1, "" + score);
 			create.setString(2, hostname);
 			create.executeUpdate();
+			refreshAverage();
+			refreshNumVotes();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		System.out.println("Incoming score " + score);
 	}
-
 }

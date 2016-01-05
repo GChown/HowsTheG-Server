@@ -33,14 +33,14 @@ class ClientThread implements Runnable{
 			try{
 				request = in.readInt();
 				//Request 0 is send Rating (incoming), request 1 is get rating and numVotes
-				System.out.println("Recieved request " + request + " from client " + hostname + "; ");
-				
-				
+				System.out.print("Recieved " + request + " from " + hostname + ": ");
+
 				//Incoming rating
 				if(request == 0){
 					int usrRating = in.readInt();
-					if(usrRating > 6 || usrRating < 1){
-						out.writeUTF("Error: Must be between 1-5");
+					System.out.println("incoming vote " + usrRating);
+					if(usrRating > 5 || usrRating < 1){
+						//Entered bad score!
 						break;
 					}
 					host.addScore(usrRating, hostname);
@@ -49,7 +49,7 @@ class ClientThread implements Runnable{
 				}else if(request == 1){
 					float avg = host.getAverage();
 					int num = host.getNumVotes();
-					System.out.println("Sending score " + avg + ", numVotes " + num);
+					System.out.println("sending score " + avg + ", numVotes " + num);
 					out.writeFloat(avg);
 					out.writeInt(num);
 					
