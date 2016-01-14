@@ -3,7 +3,7 @@ import java.util.Scanner;
 import java.io.IOException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-public class Client{
+public class ClientTester{
 	static DataInputStream din;
 	static DataOutputStream dout;
 	static Socket sock;
@@ -17,9 +17,10 @@ public class Client{
 			option = keyb.nextInt();
 		}
 		try{
-			sock = new Socket("IPGOESHERE.com", 8000);
+			sock = new Socket("localhost", 8000);
 			din = new DataInputStream(sock.getInputStream());
 			dout = new DataOutputStream(sock.getOutputStream());
+			dout.writeUTF("localtester");
 			if(option == 1){
 				dout.writeInt(1);
 				float rating = din.readFloat();

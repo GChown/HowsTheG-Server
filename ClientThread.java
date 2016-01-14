@@ -7,11 +7,11 @@ import java.net.Socket;
 class ClientThread implements Runnable{
 		private Socket socket;
 		private int request;
-		private String hostname;
+		private String deviceid;
 		private DataInputStream in;
 		private DataOutputStream out;
 		private ServerThread host;
-		
+		private int id;		
 		ClientThread(Socket sock, ServerThread host){
 			this.socket = sock;
 			this.host = host;
@@ -19,7 +19,8 @@ class ClientThread implements Runnable{
 				in = new DataInputStream(socket.getInputStream());
 				out = new DataOutputStream(socket.getOutputStream());
 				request = -1;
-				this.hostname = in.readUTF();
+				this.deviceid = in.readUTF();
+				this.id = host.getID(deviceid);
 			}catch(EOFException e){
 				System.out.println("Client disconnected");
 			}catch(IOException e){
@@ -33,23 +34,23 @@ class ClientThread implements Runnable{
 			try{
 				request = in.readInt();
 				//Request 0 is send Rating (incoming), request 1 is get rating and numVotes
-				System.out.print("Recieved " + request + " from " + hostname + ": ");
+				System.out.print("Got " + request + " from " + id + ": ");
 
 				//Incoming rating
 				if(request == 0){
 					int usrRating = in.readInt();
-					System.out.println("incoming vote " + usrRating);
+					System.out.println("vote " + usrRating);
 					if(usrRating > 5 || usrRating < 1){
 						//Entered bad score!
 						break;
 					}
-					host.addScore(usrRating, hostname);
+					host.addScore(usrRating, id);
 					
 				//Output rating and numVotes
 				}else if(request == 1){
 					float avg = host.getAverage();
 					int num = host.getNumVotes();
-					System.out.println("sending score " + avg + ", numVotes " + num);
+					System.out.println("score " + avg + ", votes " + num);
 					out.writeFloat(avg);
 					out.writeInt(num);
 					
@@ -69,7 +70,7 @@ class ClientThread implements Runnable{
 			}
 		}
 		
-		public String getHostname(){
-			return hostname;
+		public int getDeviceId(){
+			return id;
 		}
 	}
