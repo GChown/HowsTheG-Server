@@ -62,8 +62,8 @@ class ClientThread implements Runnable{
 				System.out.println("Client disconnected");
 				runIt = false;
 			}catch(java.net.SocketException e){
-				System.out.println("Error with client " + socket); 
-				e.printStackTrace();
+				System.out.println("Client disconnected");
+				runIt = false;
 			}catch(IOException e){
 				e.printStackTrace();
 			}
