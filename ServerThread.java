@@ -150,7 +150,7 @@ public class ServerThread extends Thread {
 				PreparedStatement create = sqlCon
 					.prepareStatement("INSERT INTO user(device) VALUES (?) "
 							+ "ON DUPLICATE KEY UPDATE device=device;");
-				create.setString(1, "" + client.getDeviceId());
+				create.setString(1, "" + client.getDeviceName());
 				create.executeUpdate();
 				create = sqlCon
 					.prepareStatement("INSERT INTO vote" + tableName + "(uid) VALUES (?) "

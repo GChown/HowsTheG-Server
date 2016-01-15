@@ -73,4 +73,7 @@ class ClientThread implements Runnable{
 		public int getDeviceId(){
 			return id;
 		}
+		public String getDeviceName(){
+			return deviceid;
+		}
 	}
