@@ -34,12 +34,11 @@ class ClientThread implements Runnable{
 			try{
 				request = in.readInt();
 				//Request 0 is send Rating (incoming), request 1 is get rating and numVotes
-				System.out.print("Got " + request + " from " + id + ": ");
 
 				//Incoming rating
 				if(request == 0){
 					int usrRating = in.readInt();
-					System.out.println("vote " + usrRating);
+					System.out.print("Got score from " + id + ": " + vote);
 					if(usrRating > 5 || usrRating < 1){
 						System.out.println("Recieved bad score: " + usrRating);
 						//Entered bad score!
@@ -51,17 +50,16 @@ class ClientThread implements Runnable{
 				}else if(request == 1){
 					float avg = host.getAverage();
 					int num = host.getNumVotes();
-					System.out.println("score " + avg + ", votes " + num);
 					out.writeFloat(avg);
 					out.writeInt(num);
 				}else if(request == 2){
-					//Incoming comment
+					/*Incoming comment
 					String comment = in.readUTF();
 					System.out.println("comment \"" + comment + "\"");
-					host.addComment(comment, id);
+					host.addComment(comment, id);*/
 				}else if(request == 3){
-					//Send comments
-					//int numComments = host.getNumComments();
+					/*Send comments
+					int numComments = host.getNumComments();*/
 				}else{
 					System.out.println("Bad request recieved");
 				}
