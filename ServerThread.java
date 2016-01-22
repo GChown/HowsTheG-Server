@@ -12,6 +12,7 @@ import java.sql.Statement;
 import java.util.Calendar;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Date;
 
 public class ServerThread extends Thread {
 	private ServerSocket socket;
@@ -20,11 +21,10 @@ public class ServerThread extends Thread {
 	private float rating;
 	private int numVotes;
 	private float totRating;
-	private static String tableName;
 	private char meal;
 	private int hour;
 	private Calendar calendar;
-
+	private int numComment;
 
 	public static void main(String[] args) {
 		try {
@@ -38,20 +38,24 @@ public class ServerThread extends Thread {
 		socket = new ServerSocket(8000);
 		calendar = Calendar.getInstance();
 		hour = calendar.get(Calendar.HOUR_OF_DAY);
-		//Table name is _2016_01_31 for example
-		tableName = "_" + calendar.get(Calendar.YEAR) + "_" +  calendar.get(Calendar.MONTH) 
-			+ "_" + calendar.get(Calendar.DAY_OF_MONTH);
 		sqlCon = getConnection();
+
 		createUsers();
 		createVotes();
 		createComments();
-		System.out.println("Running on database " + tableName);
 		rating = 0;
 		numVotes = 0;
 		totRating = 0;
+		numComment = 0;
 		meal = 'b';
+		updateNumVotes();
+		updateAverage();
+		runTimer();
+	}
+
+	private void runTimer(){
 		//Every hour check if the meal has changed; 
-		//if it has, update the variable
+		//if it has, update the variable meal.
 		Calendar timerSet = Calendar.getInstance();
 		timerSet.set(Calendar.HOUR, 0);
 		timerSet.set(Calendar.MINUTE, 0);
@@ -61,7 +65,6 @@ public class ServerThread extends Thread {
 			public void run() {
 				hour = calendar.get(Calendar.HOUR_OF_DAY);
 				if(hour == 0)
-					sqlCon = getConnection();
 					createVotes();
 				if(hour >= 8 && hour < 11)
 					meal = 'b';
@@ -98,8 +101,7 @@ public class ServerThread extends Thread {
 			PreparedStatement create = sqlCon.prepareStatement(
 					"CREATE TABLE IF NOT EXISTS comment(C_ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, "
 					+ "uid int NOT NULL, FOREIGN KEY (uid) REFERENCES user(U_ID), text varchar(255) NOT NULL, "
-					+ "numvote int NOT NULL DEFAULT 1, timesent datetime NOT NULL DEFAULT ?);");
-			create.setTimestamp(1, new java.sql.Timestamp(new java.util.Date().getTime()));
+					+ "numvote int NOT NULL DEFAULT 0, timesent datetime NOT NULL);");
 			create.executeUpdate();
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -109,19 +111,18 @@ public class ServerThread extends Thread {
 	 * Create the votes table(V_ID, U_ID, vote_b, vote_l, vote_d)
 	 */
 	private void createVotes(){
-		tableName = "_" + calendar.get(Calendar.YEAR) + "_" +  calendar.get(Calendar.MONTH) 
-			+ "_" + calendar.get(Calendar.DAY_OF_MONTH);
 		try {
 			PreparedStatement create = sqlCon.prepareStatement(
-					"CREATE TABLE IF NOT EXISTS vote" + tableName + "(V_ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, "
-					+ "uid int NOT NULL, FOREIGN KEY (uid) REFERENCES user(U_ID), vote_b INT, vote_l INT, vote_d INT);");
+					"CREATE TABLE IF NOT EXISTS vote(V_ID int NOT NULL AUTO_INCREMENT PRIMARY KEY, "
+					+ "uid int NOT NULL, FOREIGN KEY (uid) REFERENCES user(U_ID), vote_b INT, vote_l INT, vote_d INT,"
+					+ "lastvote datetime NOT NULL);");
 			create.executeUpdate();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	public static Connection getConnection() {
+	public static Connection getConnection(){
 		try {
 			String driver = "com.mysql.jdbc.Driver";
 			String url = "jdbc:mysql://localhost:3306/HowsTheGdb";
@@ -146,18 +147,14 @@ public class ServerThread extends Thread {
 				System.out.println("Connection from " + server.getInetAddress().getHostName() + "(" 
 						+ server.getInetAddress().getHostAddress() + ")");
 				ClientThread client = new ClientThread(server, this);
-				// INSERT INTO 'votes' ('name') VALUES
 				PreparedStatement create = sqlCon
 					.prepareStatement("INSERT INTO user(device) VALUES (?) "
 							+ "ON DUPLICATE KEY UPDATE device=device;");
-				create.setString(1, "" + client.getDeviceName());
+				create.setString(1, client.getDeviceName());
 				create.executeUpdate();
-				create = sqlCon
-					.prepareStatement("INSERT INTO vote" + tableName + "(uid) VALUES (?) "
-							+ "ON DUPLICATE KEY UPDATE V_ID=V_ID;");
-				create.setString(1, "" + client.getDeviceId());
-				create.executeUpdate();
+
 				new Thread(client).start();
+
 			} catch (SQLException e) {
 				e.printStackTrace();
 			} catch (SocketTimeoutException k) {
@@ -173,19 +170,25 @@ public class ServerThread extends Thread {
 	}
 	public int getID(String devid){
 		try{
-			Statement stmt = sqlCon.createStatement();
-			ResultSet results = stmt.executeQuery("SELECT U_ID FROM user WHERE device=\"" + devid + "\";");
-			if(results.next())
+			PreparedStatement stmt = sqlCon.prepareStatement("SELECT U_ID FROM user WHERE device=?;");
+			stmt.setString(1, devid);
+			ResultSet results = stmt.executeQuery();
+			if(results.next()){
 				return results.getInt(1);
-		}catch(SQLException e){
-				e.printStackTrace();
 			}
-		return 0;
+			
+		}catch(SQLException e){
+			e.printStackTrace();
 		}
+		return 0;
+	}
+
 	public void updateAverage() {
 		try {
-			Statement stmt = sqlCon.createStatement();
-			ResultSet results = stmt.executeQuery("SELECT AVG(vote_" + meal + ") FROM vote" + tableName + ";");
+			PreparedStatement stmt = sqlCon.prepareStatement("SELECT AVG(m1.vote_" + meal + ") FROM vote "
+				+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote) WHERE m2.V_ID IS NULL;");
+			//Select avg of vote at current meal between 00:01 this morning and right now.
+			ResultSet results = stmt.executeQuery();
 			if(results.next())
 				rating = results.getFloat(1);
 			System.out.println("Updated rating " + rating);
@@ -197,35 +200,81 @@ public class ServerThread extends Thread {
 	public void updateNumVotes() {
 		try {
 			Statement stmt = sqlCon.createStatement();
-			ResultSet results = stmt.executeQuery("SELECT COUNT(*) FROM vote" + tableName 
-					+ " WHERE vote_" + meal + " IS NOT NULL;");
+			ResultSet results = stmt.executeQuery("SELECT COUNT(m1.vote_" + meal + ") FROM vote "
+			+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote) WHERE m2.V_ID IS NULL;");
 			if(results.next())
 				numVotes = results.getInt(1);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 	}
+
 	public float getAverage(){
 		return rating;
 	}
+
 	public int getNumVotes(){
 		return numVotes;
 	}	
 
+	public int getNumComments(){
+		return numComment;
+	}
+
 	public void addScore(int score, int clientid) {
-		numVotes++;
-		totRating += score;
 		try {
 			//Update score in database
 			PreparedStatement create = sqlCon
-				.prepareStatement("UPDATE vote" + tableName + " SET vote_" + meal + "=? WHERE uid=?;");
-			create.setString(1, "" + score);
-			create.setString(2, "" + clientid);
+				.prepareStatement("INSERT INTO vote (uid, vote_" + meal + ", lastvote) VALUES(?,?,?) ON DUPLICATE KEY UPDATE vote_"
+						+ meal + "=vote_" + meal + ";");
+			create.setInt(1, clientid);
+			create.setInt(2, score);
+			create.setTimestamp(3, new java.sql.Timestamp(new java.util.Date().getTime()));
 			create.executeUpdate();
 			updateAverage();
 			updateNumVotes();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public void updateNumComments(){
+		//try {
+			//Statement stmt = sqlCon.createStatement();
+			//ResultSet results = stmt.executeQuery("SELECT COUNT(*) FROM comment WHERE ");
+			//if(results.next())
+				//numComment = results.getInt(1);
+		//} catch (SQLException e) {
+			//e.printStackTrace();
+		//}
+	}
+
+	public void addComment(String comment, int clientid){
+		if(comment.length() == 0) return;
+		try{
+			PreparedStatement create = sqlCon.prepareStatement("INSERT INTO comment(uid, text, timesent) VALUES"
+					+ "(?, ?, ?);");
+			create.setInt(1, clientid);
+			create.setString(2, comment);
+			create.setTimestamp(3, new java.sql.Timestamp(new java.util.Date().getTime()));
+			create.executeUpdate();
+			updateNumComments();
+		}catch(SQLException e){
+			e.printStackTrace();
+		}
+	}
+
+	public String[] getComments(){
+		String[] comments = new String[numComment];
+		//Do something here. I'm not really sure yet...
+		/*try{
+			Statement stmt = sqlCon.createStatement();
+			ResultSet results = stmt.executeQuery("");
+			if(results.next())
+				numComment = results.getInt(1);
+		}catch(SQLException e){
+			System.out.println("Error getting comment: " + e);
+		}*/
+		return comments;
 	}
 }

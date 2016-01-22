@@ -41,6 +41,7 @@ class ClientThread implements Runnable{
 					int usrRating = in.readInt();
 					System.out.println("vote " + usrRating);
 					if(usrRating > 5 || usrRating < 1){
+						System.out.println("Recieved bad score: " + usrRating);
 						//Entered bad score!
 						break;
 					}
@@ -53,8 +54,14 @@ class ClientThread implements Runnable{
 					System.out.println("score " + avg + ", votes " + num);
 					out.writeFloat(avg);
 					out.writeInt(num);
-					
-					
+				}else if(request == 2){
+					//Incoming comment
+					String comment = in.readUTF();
+					System.out.println("comment \"" + comment + "\"");
+					host.addComment(comment, id);
+				}else if(request == 3){
+					//Send comments
+					//int numComments = host.getNumComments();
 				}else{
 					System.out.println("Bad request recieved");
 				}
@@ -65,6 +72,7 @@ class ClientThread implements Runnable{
 				System.out.println("Client disconnected");
 				runIt = false;
 			}catch(IOException e){
+				runIt = false;
 				e.printStackTrace();
 			}
 			}
