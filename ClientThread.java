@@ -38,7 +38,7 @@ class ClientThread implements Runnable{
 				//Incoming rating
 				if(request == 0){
 					int usrRating = in.readInt();
-					System.out.print("Got score from " + id + ": " + vote);
+					System.out.println("Got score from " + id + ": " + usrRating);
 					if(usrRating > 5 || usrRating < 1){
 						System.out.println("Recieved bad score: " + usrRating);
 						//Entered bad score!

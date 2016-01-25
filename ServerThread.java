@@ -23,7 +23,6 @@ public class ServerThread extends Thread {
 	private float totRating;
 	private char meal;
 	private int hour;
-	private Calendar calendar;
 	private int numComment;
 
 	public static void main(String[] args) {
@@ -36,10 +35,10 @@ public class ServerThread extends Thread {
 
 	public ServerThread() throws IOException {
 		socket = new ServerSocket(8000);
-		calendar = Calendar.getInstance();
-		hour = calendar.get(Calendar.HOUR_OF_DAY);
+		hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
 		sqlCon = getConnection();
-
+		
+		runTimer();
 		createUsers();
 		createVotes();
 		createComments();
@@ -47,10 +46,8 @@ public class ServerThread extends Thread {
 		numVotes = 0;
 		totRating = 0;
 		numComment = 0;
-		meal = 'b';
 		updateNumVotes();
 		updateAverage();
-		runTimer();
 	}
 
 	private void runTimer(){
@@ -63,7 +60,8 @@ public class ServerThread extends Thread {
 		Timer timer = new Timer();
 		timer.schedule(new TimerTask(){
 			public void run() {
-				hour = calendar.get(Calendar.HOUR_OF_DAY);
+				Calendar rightNow = Calendar.getInstance();
+				int hour = rightNow.get(Calendar.HOUR_OF_DAY);
 				if(hour == 0)
 					createVotes();
 				if(hour >= 8 && hour < 11)
@@ -152,9 +150,7 @@ public class ServerThread extends Thread {
 							+ "ON DUPLICATE KEY UPDATE device=device;");
 				create.setString(1, client.getDeviceName());
 				create.executeUpdate();
-
 				new Thread(client).start();
-
 			} catch (SQLException e) {
 				e.printStackTrace();
 			} catch (SocketTimeoutException k) {
@@ -186,8 +182,19 @@ public class ServerThread extends Thread {
 	public void updateAverage() {
 		try {
 			PreparedStatement stmt = sqlCon.prepareStatement("SELECT AVG(m1.vote_" + meal + ") FROM vote "
-				+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote) WHERE m2.V_ID IS NULL;");
-			//Select avg of vote at current meal between 00:01 this morning and right now.
+				+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote"
+				+ " AND m1.lastvote BETWEEN ? AND ?) WHERE m2.V_ID IS NULL;");
+			//Select avg of vote at current meal between midnight last night and right now.
+			Date now = new Date();                      
+			Calendar cal = Calendar.getInstance();      
+			cal.setTime(now);                           
+			cal.set(Calendar.HOUR_OF_DAY, 0);           
+			cal.set(Calendar.MINUTE, 0);                
+			cal.set(Calendar.SECOND, 0);                
+			cal.set(Calendar.MILLISECOND, 0);           
+			Date zeroedDate = cal.getTime();
+			stmt.setTimestamp(1, new java.sql.Timestamp(zeroedDate.getTime()));
+			stmt.setTimestamp(2, new java.sql.Timestamp(now.getTime()));
 			ResultSet results = stmt.executeQuery();
 			if(results.next())
 				rating = results.getFloat(1);
@@ -199,9 +206,20 @@ public class ServerThread extends Thread {
 
 	public void updateNumVotes() {
 		try {
-			Statement stmt = sqlCon.createStatement();
-			ResultSet results = stmt.executeQuery("SELECT COUNT(m1.vote_" + meal + ") FROM vote "
-			+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote) WHERE m2.V_ID IS NULL;");
+			PreparedStatement stmt = sqlCon.prepareStatement("SELECT COUNT(m1.vote_" + meal + ") FROM vote "
+			+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote "
+			+ "AND m1.lastvote BETWEEN ? AND ?) WHERE m2.V_ID IS NULL;");
+			Date now = new Date();                      
+			Calendar cal = Calendar.getInstance();      
+			cal.setTime(now);                           
+			cal.set(Calendar.HOUR_OF_DAY, 0);           
+			cal.set(Calendar.MINUTE, 0);                
+			cal.set(Calendar.SECOND, 0);                
+			cal.set(Calendar.MILLISECOND, 0);           
+			Date zeroedDate = cal.getTime();
+			stmt.setTimestamp(1, new java.sql.Timestamp(zeroedDate.getTime()));
+			stmt.setTimestamp(2, new java.sql.Timestamp(now.getTime()));
+			ResultSet results = stmt.executeQuery();
 			if(results.next())
 				numVotes = results.getInt(1);
 		} catch (SQLException e) {
@@ -223,10 +241,10 @@ public class ServerThread extends Thread {
 
 	public void addScore(int score, int clientid) {
 		try {
-			//Update score in database
+			//Insert score into database
 			PreparedStatement create = sqlCon
-				.prepareStatement("INSERT INTO vote (uid, vote_" + meal + ", lastvote) VALUES(?,?,?) ON DUPLICATE KEY UPDATE vote_"
-						+ meal + "=vote_" + meal + ";");
+				.prepareStatement("INSERT INTO vote (uid, vote_" + meal + ", lastvote) VALUES(?,?,?) "
+						+ "ON DUPLICATE KEY UPDATE vote_" + meal + "=vote_" + meal + ";");
 			create.setInt(1, clientid);
 			create.setInt(2, score);
 			create.setTimestamp(3, new java.sql.Timestamp(new java.util.Date().getTime()));
