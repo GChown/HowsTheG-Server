@@ -152,7 +152,8 @@ public class ServerThread extends Thread {
 				create.executeUpdate();
 				new Thread(client).start();
 			} catch (SQLException e) {
-				e.printStackTrace();
+				System.out.println("Database dead, restarting");
+				sqlCon = getConnection();
 			} catch (SocketTimeoutException k) {
 				System.err.println("Socket timed out!");
 			} catch (EOFException e) {
@@ -181,9 +182,9 @@ public class ServerThread extends Thread {
 
 	public void updateAverage() {
 		try {
-			PreparedStatement stmt = sqlCon.prepareStatement("SELECT AVG(m1.vote_" + meal + ") FROM vote "
-				+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote"
-				+ " AND m1.lastvote BETWEEN ? AND ?) WHERE m2.V_ID IS NULL;");
+			PreparedStatement stmt = sqlCon.prepareStatement("SELECT AVG(v1.vote_" + meal + ") FROM vote "
+				+ "v1 inner join (select V_ID, uid, max(lastvote) as MaxDate from vote group by uid) v2 "
+				+ "on v1.uid = v2.uid and v1.lastvote = v2.MaxDate where lastvote between ? and ?");
 			//Select avg of vote at current meal between midnight last night and right now.
 			Date now = new Date();                      
 			Calendar cal = Calendar.getInstance();      
@@ -206,9 +207,9 @@ public class ServerThread extends Thread {
 
 	public void updateNumVotes() {
 		try {
-			PreparedStatement stmt = sqlCon.prepareStatement("SELECT COUNT(m1.vote_" + meal + ") FROM vote "
-			+ "m1 LEFT JOIN vote m2 ON (m1.uid = m2.uid AND m1.lastvote < m2.lastvote "
-			+ "AND m1.lastvote BETWEEN ? AND ?) WHERE m2.V_ID IS NULL;");
+			PreparedStatement stmt = sqlCon.prepareStatement("SELECT COUNT(v1.vote_" + meal + ") FROM vote "
+				+ "v1 inner join (select V_ID, uid, max(lastvote) as MaxDate from vote group by uid) v2 "
+				+ "on v1.uid = v2.uid and v1.lastvote = v2.MaxDate where lastvote between ? and ?");
 			Date now = new Date();                      
 			Calendar cal = Calendar.getInstance();      
 			cal.setTime(now);                           
@@ -243,8 +244,7 @@ public class ServerThread extends Thread {
 		try {
 			//Insert score into database
 			PreparedStatement create = sqlCon
-				.prepareStatement("INSERT INTO vote (uid, vote_" + meal + ", lastvote) VALUES(?,?,?) "
-						+ "ON DUPLICATE KEY UPDATE vote_" + meal + "=vote_" + meal + ";");
+				.prepareStatement("INSERT INTO vote (uid, vote_" + meal + ", lastvote) VALUES(?,?,?);");
 			create.setInt(1, clientid);
 			create.setInt(2, score);
 			create.setTimestamp(3, new java.sql.Timestamp(new java.util.Date().getTime()));
@@ -294,5 +294,8 @@ public class ServerThread extends Thread {
 			System.out.println("Error getting comment: " + e);
 		}*/
 		return comments;
+	}
+	public void setUsername(String uname, int uid){
+
 	}
 }
