@@ -66,16 +66,16 @@ public class ServerThread extends Thread {
 					createVotes();
 				if(hour >= 8 && hour < 11)
 					meal = 'b';
-				if(hour >= 11 && hour < 14)
+				if(hour >= 11 && hour < 16)
 					meal = 'l';
-				if(hour >= 14 && hour < 22)
+				if(hour >= 16 && hour < 22)
 					meal = 'd';
 				if(hour >= 22)
 					//Temporary, make it not calculate anything after 10:00.
 					meal = 'd';
 				System.out.println("Hour is " + hour + " so meal is " + meal);
 			}
-			//Start at 12:01AM every morning and run every hour after
+			//Run every hour
 		}, timerSet.getTime(), 60 * 60 * 1000);
 	}
 	/**
